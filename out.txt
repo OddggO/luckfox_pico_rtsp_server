@@ -1,0 +1,102 @@
+以下是"ffplay -i rtsp://127.0.0.1:8554/test"后服务端的打印信息，单播、UDP发送：
+[INFO]2025-11-09 23:11:08 [C:\myfiles\projects\cpp\audio_video_learning\BXC_RtspServer\trunk\Live\RtspConnection.cpp:74]
+
+received msg:
+OPTIONS rtsp://127.0.0.1:8554/test RTSP/1.0
+CSeq: 1
+User-Agent: Lavf60.4.101
+
+
+
+[INFO]2025-11-09 23:11:08 [C:\myfiles\projects\cpp\audio_video_learning\BXC_RtspServer\trunk\Live\RtspConnection.cpp:543] RTSP/1.0 200 OK
+CSeq: 1
+Public: DESCRIBE, ANNOUNCE, SETUP, PLAY, RECORD, PAUSE, GET_PARAMETER, TEARDOWN
+Server: BXC_RTSPSERVER
+
+
+[INFO]2025-11-09 23:11:08 [C:\myfiles\projects\cpp\audio_video_learning\BXC_RtspServer\trunk\Live\RtspConnection.cpp:74]
+received msg:
+DESCRIBE rtsp://127.0.0.1:8554/test RTSP/1.0
+Accept: application/sdp
+CSeq: 2
+User-Agent: Lavf60.4.101
+
+
+
+[INFO]2025-11-09 23:11:08 [C:\myfiles\projects\cpp\audio_video_learning\BXC_RtspServer\trunk\Live\RtspConnection.cpp:543] RTSP/1.0 200 OK
+CSeq: 2
+Content-Length: 370
+Content-Type: application/sdp
+
+v=0
+o=- 91762701068 1 IN IP4 0.0.0.0
+t=0 0
+a=control:*
+a=type:broadcast
+m=video 0 RTP/AVP 96
+c=IN IP4 0.0.0.0
+a=rtpmap:96 H264/90000
+a=framerate:25
+a=control:track0
+m=audio 0 RTP/AVP 97
+c=IN IP4 0.0.0.0
+a=rtpmap:97 mpeg4-generic/44100/2
+a=fmtp:97 profile-level-id=1;mode=AAC-hbr;sizelength=13;indexlength=3;indexdeltalength=3;config=1210
+a=control:track1
+
+[INFO]2025-11-09 23:11:08 [C:\myfiles\projects\cpp\audio_video_learning\BXC_RtspServer\trunk\Live\RtspConnection.cpp:74]
+received msg:
+SETUP rtsp://127.0.0.1:8554/test/track0 RTSP/1.0
+Transport: RTP/AVP/UDP;unicast;client_port=26976-26977
+CSeq: 3
+User-Agent: Lavf60.4.101
+
+
+
+[INFO]2025-11-09 23:11:08 [C:\myfiles\projects\cpp\audio_video_learning\BXC_RtspServer\trunk\Live\RtspConnection.cpp:543] RTSP/1.0 200 OK
+CSeq: 3
+Server: BXC_RTSPSERVER
+Transport: RTP/AVP;unicast;client_port=26976-26977;server_port=24950-24951
+Session: 00003cc1
+
+
+[INFO]2025-11-09 23:11:08 [C:\myfiles\projects\cpp\audio_video_learning\BXC_RtspServer\trunk\Live\RtspConnection.cpp:74]
+received msg:
+SETUP rtsp://127.0.0.1:8554/test/track1 RTSP/1.0
+Transport: RTP/AVP/UDP;unicast;client_port=26978-26979
+CSeq: 4
+User-Agent: Lavf60.4.101
+Session: 00003cc1
+
+
+
+[INFO]2025-11-09 23:11:08 [C:\myfiles\projects\cpp\audio_video_learning\BXC_RtspServer\trunk\Live\RtspConnection.cpp:543] RTSP/1.0 200 OK
+CSeq: 4
+Server: BXC_RTSPSERVER
+Transport: RTP/AVP;unicast;client_port=26978-26979;server_port=15606-15607
+Session: 00003cc1
+
+
+[INFO]2025-11-09 23:11:08 [C:\myfiles\projects\cpp\audio_video_learning\BXC_RtspServer\trunk\Live\RtspConnection.cpp:74]
+received msg:
+PLAY rtsp://127.0.0.1:8554/test RTSP/1.0
+Range: npt=0.000-
+CSeq: 5
+User-Agent: Lavf60.4.101
+Session: 00003cc1
+
+
+
+[INFO]2025-11-09 23:11:08 [C:\myfiles\projects\cpp\audio_video_learning\BXC_RtspServer\trunk\Live\RtspConnection.cpp:543] RTSP/1.0 200 OK
+CSeq: 5
+Server: BXC_RTSPSERVER
+Range: npt=0.000-
+Session: 00003cc1; timeout=60
+
+
+[INFO]2025-11-09 23:11:38 [C:\myfiles\projects\cpp\audio_video_learning\BXC_RtspServer\trunk\Live\RtspConnection.cpp:74]
+received msg:
+GET_PARAMETER rtsp://127.0.0.1:8554/test RTSP/1.0
+CSeq: 6
+User-Agent: Lavf60.4.101
+Session: 00003cc1
