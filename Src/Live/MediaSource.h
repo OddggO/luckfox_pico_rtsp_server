@@ -6,7 +6,8 @@
 #include <mutex>
 #include <string>
 
-#define FRAME_MAX_SIZE (1024*200) 
+// #define FRAME_MAX_SIZE (1024*200) 
+#define FRAME_MAX_SIZE (1920*1080*3) 
 #define DEFAULT_FRAME_NUM   4
 
 class MediaFrame
