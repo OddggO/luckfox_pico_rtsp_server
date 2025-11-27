@@ -9,8 +9,10 @@ LuckfoxCameraSource* LuckfoxCameraSource::createNew(UsageEnvironment* env, int w
 LuckfoxCameraSource::LuckfoxCameraSource(UsageEnvironment* env, int width, int height): MediaSource(env), 
                                         mWidth(width), mHeight(height)
 {
+	LOGI("LuckfoxCameraSource()");
+	mSourceName = "LuckfoxCameraSource";
+	setFps(30);
 	//h264_frame	
-		
 	mStFrame.pstPack = (VENC_PACK_S *)malloc(sizeof(VENC_PACK_S));
 	mH264_PTS = 0;
 	mH264_TimeRef = 0; 
@@ -121,10 +123,10 @@ void LuckfoxCameraSource::handleTask()
 		
 		s32Ret = RK_MPI_VENC_GetStream(0, &mStFrame, -1);
 		if(s32Ret == RK_SUCCESS) {
-			//printf("len = %d PTS = %d \n",stFrame.pstPack->u32Len, stFrame.pstPack->u64PTS);	
+			LOGI("len = %d PTS = %d \n",mStFrame.pstPack->u32Len, mStFrame.pstPack->u64PTS);	
 			void *pData = RK_MPI_MB_Handle2VirAddr(mStFrame.pstPack->pMbBlk);
 			RK_U64 nowUs = TEST_COMM_GetNowUs();
-			mFps = (float) 1000000 / (float)(nowUs - mH264_frame.stVFrame.u64PTS);			
+			// mFps = (float) 1000000 / (float)(nowUs - mH264_frame.stVFrame.u64PTS);			
 			memccpy(frame->temp, pData + mStFrame.pstPack->u32Offset, 0, mStFrame.pstPack->u32Len);
 			frame->mBuf = frame->temp;
 			frame->mSize = mStFrame.pstPack->u32Len;

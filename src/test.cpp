@@ -9,6 +9,7 @@
 #include "Live/MediaSession.h"
 #include "Live/MediaSession.h"
 #include "Live/H264MediaSource.h"
+#include "Live/LuckfoxCameraSource.h"
 #include "Live/AACMediaSource.h"
 #include "Live/Sink.h"
 #include "Live/H264FileSink.h"
@@ -27,13 +28,14 @@ int main()
 
     MediaSession* session = MediaSession::createNew("test");
     
-    MediaSource* h264Source = H264MediaSource::createNew(env, "data/daliu.h264");
+    // MediaSource* h264Source = H264MediaSource::createNew(env, "data/daliu.h264");
+    MediaSource* h264Source = LuckfoxCameraSource::createNew(env);
     Sink* h264Sink = H264FileSink::createNew(env, h264Source);
     session->addSink(MediaSession::Track0, h264Sink);
 
-    MediaSource* aacSource = AACMediaSource::createNew(env, "data/daliu.aac");
-    Sink* aacSink = AACFileSink::createNew(env, aacSource);
-    session->addSink(MediaSession::Track1, aacSink);
+    // MediaSource* aacSource = AACMediaSource::createNew(env, "data/daliu.aac");
+    // Sink* aacSink = AACFileSink::createNew(env, aacSource);
+    // session->addSink(MediaSession::Track1, aacSink);
     // session->startMulticast(); // 开启多播
     sessionMgr->addSession(session);
 

@@ -12,6 +12,7 @@ class LuckfoxCameraSource: public MediaSource
 public:
     static LuckfoxCameraSource* createNew(UsageEnvironment* env, int width = DISP_WIDTH, int height = DISP_HEIGHT);
     LuckfoxCameraSource(UsageEnvironment* env, int width, int height);
+    ~LuckfoxCameraSource();
 protected:
     virtual void handleTask();
 private:

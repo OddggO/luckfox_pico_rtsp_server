@@ -4,7 +4,7 @@
 #include "RtpInstance.h"
 #include <string>
 #include <list>
-#define MEDIA_MAX_TRACK_NUM 2
+#define MEDIA_MAX_TRACK_NUM 1
 
 class MediaSession
 {
