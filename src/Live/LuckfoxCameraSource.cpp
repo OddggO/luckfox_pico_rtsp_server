@@ -11,7 +11,10 @@ LuckfoxCameraSource::LuckfoxCameraSource(UsageEnvironment* env, int width, int h
 {
 	LOGI("LuckfoxCameraSource()");
 	mSourceName = "LuckfoxCameraSource";
+	system("RkLunch-stop.sh");
 	setFps(30);
+	memset(mFpsTxt, 0, 16);
+
 	//h264_frame	
 	mStFrame.pstPack = (VENC_PACK_S *)malloc(sizeof(VENC_PACK_S));
 	mH264_PTS = 0;
@@ -27,6 +30,7 @@ LuckfoxCameraSource::LuckfoxCameraSource(UsageEnvironment* env, int width, int h
 
     // Get MB from Pool 
 	mSrc_Blk = RK_MPI_MB_GetMB(mSrcPool, width * height * 3, RK_TRUE);
+	LOGI("RK_MPI_MB_GetMB()");
 
 	// Build mH264_frame
 	mH264_frame.stVFrame.u32Width = width;
@@ -37,16 +41,21 @@ LuckfoxCameraSource::LuckfoxCameraSource(UsageEnvironment* env, int width, int h
 	mH264_frame.stVFrame.u32FrameFlag = 160;
 	mH264_frame.stVFrame.pMbBlk = mSrc_Blk;
     mData = (unsigned char *)RK_MPI_MB_Handle2VirAddr(mSrc_Blk);
+	LOGI("RK_MPI_MB_Handle2VirAddr");
 
 	mCvFrame =  cv::Mat(cv::Size(width, height), CV_8UC3, mData);
+	LOGI("cv::Mat()");
 
 	// rkaiq init
 	RK_BOOL multi_sensor = RK_FALSE;	
 	const char *iq_dir = "/etc/iqfiles";
 	rk_aiq_working_mode_t hdr_mode = RK_AIQ_WORKING_MODE_NORMAL;
 	//hdr_mode = RK_AIQ_WORKING_MODE_ISP_HDR2;
+	LOGI("before SAMPLE_COMM_ISP_Init");
 	SAMPLE_COMM_ISP_Init(0, hdr_mode, multi_sensor, iq_dir);
+	LOGI("SAMPLE_COMM_ISP_Init");
 	SAMPLE_COMM_ISP_Run(0);
+	LOGI("SAMPLE_COMM_ISP_Run");
 
 	// rkmpi init
 	if (RK_MPI_SYS_Init() != RK_SUCCESS) {
@@ -57,11 +66,17 @@ LuckfoxCameraSource::LuckfoxCameraSource(UsageEnvironment* env, int width, int h
 	// vi init
 	vi_dev_init();
 	vi_chn_init(0, width, height);
+	LOGI("vi_chn_init");
 
 	// venc init
 	RK_CODEC_ID_E enCodecType = RK_VIDEO_ID_AVC;
 	venc_init(0, width, height, enCodecType);
 
+
+    for(int i = 0; i < DEFAULT_FRAME_NUM; ++i)
+    {
+        mEnv->threadPool()->addTask(mTask);
+    }
 	LOGI("init success");
 }
 
@@ -102,6 +117,7 @@ void LuckfoxCameraSource::handleTask()
 		s32Ret = RK_MPI_VI_GetChnFrame(0, 0, &mStViFrame, -1);
 		if(s32Ret == RK_SUCCESS)
 		{
+			LOGI("RK_MPI_VI_GetChnFrame success");
 			void *vi_data = RK_MPI_MB_Handle2VirAddr(mStViFrame.stVFrame.pMbBlk);
 
 			cv::Mat yuv420sp(mHeight + mHeight / 2, mWidth, CV_8UC1, vi_data);
@@ -119,11 +135,13 @@ void LuckfoxCameraSource::handleTask()
 			LOGI("get vi frame error %x", s32Ret);
 		}
 		memcpy(mData, mCvFrame.data, mWidth * mHeight * 3);
-
+		LOGI("memcpy from mCvFrame.data to mData");
 		// encode H264	
 		RK_MPI_VENC_SendFrame(0,  &mH264_frame ,-1);
+		LOGI("RK_MPI_VENC_SendFrame()");
 		
 		s32Ret = RK_MPI_VENC_GetStream(0, &mStFrame, -1);
+		LOGI("RK_MPI_VENC_GetStream()");
 		if(s32Ret == RK_SUCCESS) {
 			LOGI("len = %d PTS = %d \n",mStFrame.pstPack->u32Len, mStFrame.pstPack->u64PTS);	
 			void *pData = RK_MPI_MB_Handle2VirAddr(mStFrame.pstPack->pMbBlk);

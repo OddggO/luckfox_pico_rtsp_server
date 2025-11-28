@@ -260,7 +260,7 @@ bool RtspConnection::parsePause(const char* first, const char* last)
 
 bool RtspConnection::parseTeardown(const char* first, const char* last){
     // TODO 补充完整
-    return false;
+    return true;
 }
 
 int RtspConnection::sendMessage()

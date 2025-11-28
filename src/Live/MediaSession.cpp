@@ -170,7 +170,7 @@ void MediaSession::sendPacket(Track* track, RtpPacket* rtpPacket)
     {
         if (rtpInstance->alive()) {
             int ret = rtpInstance->send(rtpPacket);
-            // LOGI("send %d beytes, %s, (errno=%d)\n", ret, strerror(errno), errno);
+            LOGI("send %d beytes, %s, (errno=%d)\n", ret, strerror(errno), errno);
         }
     }
 }
