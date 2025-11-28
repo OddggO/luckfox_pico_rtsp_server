@@ -38,7 +38,7 @@ LuckfoxCameraSource::LuckfoxCameraSource(UsageEnvironment* env, int width, int h
 	mH264_frame.stVFrame.pMbBlk = mSrc_Blk;
     mData = (unsigned char *)RK_MPI_MB_Handle2VirAddr(mSrc_Blk);
 
-	mCvFrame =  cv::Mat(cv::Size(width,height), CV_8UC3, mData);
+	mCvFrame =  cv::Mat(cv::Size(width, height), CV_8UC3, mData);
 
 	// rkaiq init
 	RK_BOOL multi_sensor = RK_FALSE;	
@@ -115,6 +115,8 @@ void LuckfoxCameraSource::handleTask()
 							cv::FONT_HERSHEY_SIMPLEX,1,
 							cv::Scalar(0,255,0),2);
 			
+		} else {
+			LOGI("get vi frame error %x", s32Ret);
 		}
 		memcpy(mData, mCvFrame.data, mWidth * mHeight * 3);
 
@@ -127,9 +129,11 @@ void LuckfoxCameraSource::handleTask()
 			void *pData = RK_MPI_MB_Handle2VirAddr(mStFrame.pstPack->pMbBlk);
 			RK_U64 nowUs = TEST_COMM_GetNowUs();
 			// mFps = (float) 1000000 / (float)(nowUs - mH264_frame.stVFrame.u64PTS);			
-			memccpy(frame->temp, pData + mStFrame.pstPack->u32Offset, 0, mStFrame.pstPack->u32Len);
+			memcpy(frame->temp, pData + mStFrame.pstPack->u32Offset, mStFrame.pstPack->u32Len);
 			frame->mBuf = frame->temp;
 			frame->mSize = mStFrame.pstPack->u32Len;
+		} else {
+			LOGI("get stream error %x", s32Ret);
 		}
 		// release vi frame
 		s32Ret = RK_MPI_VI_ReleaseChnFrame(0, 0, &mStViFrame);
