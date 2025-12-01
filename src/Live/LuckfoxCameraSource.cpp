@@ -12,7 +12,7 @@ LuckfoxCameraSource::LuckfoxCameraSource(UsageEnvironment* env, int width, int h
 	LOGI("LuckfoxCameraSource()");
 	mSourceName = "LuckfoxCameraSource";
 	system("RkLunch-stop.sh");
-	setFps(30);
+	setFps(11);
 	memset(mFpsTxt, 0, 16);
 
 	//h264_frame	
@@ -100,6 +100,39 @@ LuckfoxCameraSource::~LuckfoxCameraSource()
 	// RK_MPI_SYS_Exit(); // TODO: 这里不能调用，否则会导致其他MediaSource无法工作
 }
 
+static inline bool startCode3(uint8_t* buf)
+{
+    if (buf[0] == 0 && buf[1] ==0 && buf[2] == 1)
+        return true;
+    else
+        return false;
+}
+
+static inline bool startCode4(uint8_t* buf)
+{
+    if (buf[0] == 0 && buf[1] ==0 && buf[2] == 0 && buf[3] == 1)
+        return true;
+    else
+        return false;
+}
+
+static uint8_t* findNextStartCode(uint8_t* buf, int size)
+{
+    if (size < 3)
+        return nullptr;
+    uint8_t* nextStartCode = buf;
+    while (nextStartCode && (nextStartCode - buf) < size - 3)
+    {
+        if(startCode3(nextStartCode) || startCode4(nextStartCode))
+            return nextStartCode;
+        nextStartCode += 1;
+    }
+    if (startCode3(nextStartCode)) {
+        return nextStartCode;
+    }
+    return nullptr;
+}
+
 void LuckfoxCameraSource::handleTask()
 {
 	std::lock_guard<std::mutex> lck(mMtx);
@@ -117,7 +150,7 @@ void LuckfoxCameraSource::handleTask()
 		s32Ret = RK_MPI_VI_GetChnFrame(0, 0, &mStViFrame, -1);
 		if(s32Ret == RK_SUCCESS)
 		{
-			LOGI("RK_MPI_VI_GetChnFrame success");
+			// LOGI("RK_MPI_VI_GetChnFrame success");
 			void *vi_data = RK_MPI_MB_Handle2VirAddr(mStViFrame.stVFrame.pMbBlk);
 
 			cv::Mat yuv420sp(mHeight + mHeight / 2, mWidth, CV_8UC1, vi_data);
@@ -135,13 +168,13 @@ void LuckfoxCameraSource::handleTask()
 			LOGI("get vi frame error %x", s32Ret);
 		}
 		memcpy(mData, mCvFrame.data, mWidth * mHeight * 3);
-		LOGI("memcpy from mCvFrame.data to mData");
+		// LOGI("memcpy from mCvFrame.data to mData");
 		// encode H264	
 		RK_MPI_VENC_SendFrame(0,  &mH264_frame ,-1);
-		LOGI("RK_MPI_VENC_SendFrame()");
+		// LOGI("RK_MPI_VENC_SendFrame()");
 		
 		s32Ret = RK_MPI_VENC_GetStream(0, &mStFrame, -1);
-		LOGI("RK_MPI_VENC_GetStream()");
+		// LOGI("RK_MPI_VENC_GetStream()");
 		if(s32Ret == RK_SUCCESS) {
 			LOGI("len = %d PTS = %d \n",mStFrame.pstPack->u32Len, mStFrame.pstPack->u64PTS);	
 			void *pData = RK_MPI_MB_Handle2VirAddr(mStFrame.pstPack->pMbBlk);
@@ -150,6 +183,19 @@ void LuckfoxCameraSource::handleTask()
 			memcpy(frame->temp, pData + mStFrame.pstPack->u32Offset, mStFrame.pstPack->u32Len);
 			frame->mBuf = frame->temp;
 			frame->mSize = mStFrame.pstPack->u32Len;
+			if (startCode3(frame->mBuf)) {
+				frame->mBuf += 3;
+				frame->mSize -= 3;
+			}
+			else if (startCode4(frame->mBuf)) {
+				frame->mBuf += 4;
+				frame->mSize -= 4;
+			} else {
+				LOGE("not found start code!");
+			}
+			// frame->mSize = 1920 * 1080 * 3;
+			// LOGI("frame->mSize=%d, u64PTS=%d", frame->mSize, mStFrame.pstPack->u64PTS);
+			// usleep(mStFrame.pstPack->u64PTS);
 		} else {
 			LOGI("get stream error %x", s32Ret);
 		}
@@ -162,6 +208,7 @@ void LuckfoxCameraSource::handleTask()
 		if (s32Ret != RK_SUCCESS) {
 			RK_LOGE("RK_MPI_VENC_ReleaseStream fail %x", s32Ret);
 		}
+		// 睡眠50ms
 		break;
 	}
 	mInputFrameQ.pop();
