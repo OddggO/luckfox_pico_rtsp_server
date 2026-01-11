@@ -15,8 +15,11 @@
 #include "Live/H264FileSink.h"
 #include "Live/AACFileSink.h"
 
-int main()
+int main(int argc, char* argv[])
 {
+    // 解析输入参数
+    // ./xxx yolov5.rknn 
+
     // q: srand(time(NULL));的作用是什么？a: 用当前时间初始化随机数生成器的种子，确保每次运行程序时生成不同的随机数序列。生成SessionId和多播地址需要rand()函数产生随机数
     srand(time(NULL)); // 时间初始化    
     LOGI("program begin");

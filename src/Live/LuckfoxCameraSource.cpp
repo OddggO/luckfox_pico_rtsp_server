@@ -1,6 +1,43 @@
 #include "LuckfoxCameraSource.h"
 #include "Log.h"
 
+// model size
+int model_width = 640;
+int model_height = 640;	
+float scale;
+int leftPadding;
+int topPadding;
+
+static cv::Mat letterbox(cv::Mat input)
+{
+	float scaleX = (float)model_width  / (float)DISP_WIDTH; 
+	float scaleY = (float)model_height / (float)DISP_HEIGHT; 
+	scale = scaleX < scaleY ? scaleX : scaleY;
+	
+	int inputWidth   = (int)((float)DISP_WIDTH * scale);
+	int inputHeight  = (int)((float)DISP_HEIGHT * scale);
+
+	leftPadding = (model_width  - inputWidth) / 2;
+	topPadding  = (model_height - inputHeight) / 2;	
+	
+
+	cv::Mat inputScale;
+    cv::resize(input, inputScale, cv::Size(inputWidth,inputHeight), 0, 0, cv::INTER_LINEAR);	
+	cv::Mat letterboxImage(640, 640, CV_8UC3,cv::Scalar(0, 0, 0));
+    cv::Rect roi(leftPadding, topPadding, inputWidth, inputHeight);
+    inputScale.copyTo(letterboxImage(roi));
+
+	return letterboxImage; 	
+}
+
+static void mapCoordinates(int *x, int *y) {	
+	int mx = *x - leftPadding;
+	int my = *y - topPadding;
+
+    *x = (int)((float)mx / scale);
+    *y = (int)((float)my / scale);
+}
+
 LuckfoxCameraSource* LuckfoxCameraSource::createNew(UsageEnvironment* env, int width, int height)
 {
 	return new LuckfoxCameraSource(env, width, height);
@@ -77,6 +114,14 @@ LuckfoxCameraSource::LuckfoxCameraSource(UsageEnvironment* env, int width, int h
     {
         mEnv->threadPool()->addTask(mTask);
     }
+
+
+	const char *model_path = "./model/yolov5.rknn";
+    memset(&mRknn_app_ctx, 0, sizeof(rknn_app_context_t));	
+	init_yolov5_model(model_path, &mRknn_app_ctx);
+	printf("init rknn model success!\n");
+	delete model_path;
+	init_post_process();
 	LOGI("init success");
 }
 
@@ -157,12 +202,43 @@ void LuckfoxCameraSource::handleTask()
 			cv::Mat bgr(mHeight, mWidth, CV_8UC3, mData);			
 			cv::cvtColor(yuv420sp, bgr, cv::COLOR_YUV420sp2BGR);
 			cv::resize(bgr, mCvFrame, cv::Size(mWidth ,mHeight), 0, 0, cv::INTER_LINEAR);
+
+			//letterbox
+			cv::Mat letterboxImage = letterbox(mCvFrame);	
+			memcpy(mRknn_app_ctx.input_mems[0]->virt_addr, letterboxImage.data, model_width*model_height*3);		
+			inference_yolov5_model(&mRknn_app_ctx, &m_od_results);
+
+			for(int i = 0; i < m_od_results.count; i++)
+			{					
+				if(m_od_results.count >= 1)
+				{
+					object_detect_result *det_result = &(m_od_results.results[i]);
+	
+					int sX = (int)(det_result->box.left   );	
+					int sY = (int)(det_result->box.top 	  );	
+					int eX = (int)(det_result->box.right  );	
+					int eY = (int)(det_result->box.bottom );
+					mapCoordinates(&sX,&sY);
+					mapCoordinates(&eX,&eY);
+					
+					printf("%s @ (%d %d %d %d) %.3f\n", coco_cls_to_name(det_result->cls_id),
+							 sX, sY, eX, eY, det_result->prop);
+
+					cv::rectangle(mCvFrame,cv::Point(sX ,sY),
+								        cv::Point(eX ,eY),
+										cv::Scalar(0,255,0),3);
+					sprintf(mFpsTxt, "%s %.1f%%", coco_cls_to_name(det_result->cls_id), det_result->prop * 100);
+					cv::putText(mCvFrame, mFpsTxt,cv::Point(sX, sY - 8),
+										   cv::FONT_HERSHEY_SIMPLEX,1,
+										   cv::Scalar(0,255,0),2);
+				}
+			}
 			
-			sprintf(mFpsTxt,"fps = %.2f", mFps);		
-            cv::putText(mCvFrame, mFpsTxt,
-							cv::Point(40, 40),
-							cv::FONT_HERSHEY_SIMPLEX,1,
-							cv::Scalar(0,255,0),2);
+			// sprintf(mFpsTxt,"fps = %.2f", mFps);		
+            // cv::putText(mCvFrame, mFpsTxt,
+			// 				cv::Point(40, 40),
+			// 				cv::FONT_HERSHEY_SIMPLEX,1,
+			// 				cv::Scalar(0,255,0),2);
 			
 		} else {
 			LOGI("get vi frame error %x", s32Ret);

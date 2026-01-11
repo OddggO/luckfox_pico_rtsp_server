@@ -4,6 +4,8 @@
 #include "opencv2/core/core.hpp"
 #include "opencv2/highgui/highgui.hpp"
 #include "opencv2/imgproc/imgproc.hpp"
+#include <string>
+#include "yolov5.h"
 #define DISP_WIDTH  1920
 #define DISP_HEIGHT 1080
 
@@ -29,4 +31,8 @@ private:
     RK_U64 mH264_PTS;
     RK_U32 mH264_TimeRef;
     VIDEO_FRAME_INFO_S mStViFrame;
+    // std::string mModelPath;
+    // std::string mLabelNameTxtPath;
+    rknn_app_context_t mRknn_app_ctx;
+    object_detect_result_list m_od_results;
 };
