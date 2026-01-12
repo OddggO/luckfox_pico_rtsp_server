@@ -47,6 +47,18 @@ LuckfoxCameraSource::LuckfoxCameraSource(UsageEnvironment* env, int width, int h
                                         mWidth(width), mHeight(height)
 {
 	LOGI("LuckfoxCameraSource()");
+	// TODO: 把模型初始化放在前面是因为这个构造函数后面会执行崩溃, 无法执行完成. 这可能是造成推流延时 模糊的原因
+	const char *model_path = "./model/yolov5.rknn";
+    memset(&mRknn_app_ctx, 0, sizeof(rknn_app_context_t));	
+	int ret = init_yolov5_model(model_path, &mRknn_app_ctx);
+	if (ret == 0)
+		LOGI("init rknn model success!\n");
+	else {
+		LOGI("init rknn model failed! ret = %d\n", ret);
+	}
+	// delete model_path; // TODO: 为什么删掉这个指针会奔溃? ! a: 
+	init_post_process();
+
 	mSourceName = "LuckfoxCameraSource";
 	system("RkLunch-stop.sh");
 	setFps(11);
@@ -115,13 +127,6 @@ LuckfoxCameraSource::LuckfoxCameraSource(UsageEnvironment* env, int width, int h
         mEnv->threadPool()->addTask(mTask);
     }
 
-
-	const char *model_path = "./model/yolov5.rknn";
-    memset(&mRknn_app_ctx, 0, sizeof(rknn_app_context_t));	
-	init_yolov5_model(model_path, &mRknn_app_ctx);
-	printf("init rknn model success!\n");
-	delete model_path;
-	init_post_process();
 	LOGI("init success");
 }
 
@@ -185,6 +190,7 @@ void LuckfoxCameraSource::handleTask()
         LOGI("no input frame available");
         return;
     }
+	LOGI("n_input : %d", mRknn_app_ctx.io_num.n_input);
 	MediaFrame* frame = mInputFrameQ.front();
 	RK_S32 s32Ret = 0;
 	while (true)
@@ -197,17 +203,19 @@ void LuckfoxCameraSource::handleTask()
 		{
 			// LOGI("RK_MPI_VI_GetChnFrame success");
 			void *vi_data = RK_MPI_MB_Handle2VirAddr(mStViFrame.stVFrame.pMbBlk);
-
+			LOGI("read one frame");
 			cv::Mat yuv420sp(mHeight + mHeight / 2, mWidth, CV_8UC1, vi_data);
 			cv::Mat bgr(mHeight, mWidth, CV_8UC3, mData);			
 			cv::cvtColor(yuv420sp, bgr, cv::COLOR_YUV420sp2BGR);
 			cv::resize(bgr, mCvFrame, cv::Size(mWidth ,mHeight), 0, 0, cv::INTER_LINEAR);
-
+			LOGI("resized one frame");
 			//letterbox
 			cv::Mat letterboxImage = letterbox(mCvFrame);	
-			memcpy(mRknn_app_ctx.input_mems[0]->virt_addr, letterboxImage.data, model_width*model_height*3);		
+			LOGI("letterbox one frame");
+			memcpy(mRknn_app_ctx.input_mems[0]->virt_addr, letterboxImage.data, model_width*model_height*3);
+			LOGI("memcpy one frame to virt_addr");
 			inference_yolov5_model(&mRknn_app_ctx, &m_od_results);
-
+			LOGI("inference one frame");
 			for(int i = 0; i < m_od_results.count; i++)
 			{					
 				if(m_od_results.count >= 1)
