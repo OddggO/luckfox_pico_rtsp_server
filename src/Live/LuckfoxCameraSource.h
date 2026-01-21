@@ -6,6 +6,8 @@
 #include "opencv2/imgproc/imgproc.hpp"
 #include <string>
 #include "yolov5.h"
+#include "KalmanTracker.h"
+#include "Hungarian.h"
 #define DISP_WIDTH  1920
 #define DISP_HEIGHT 1080
 
@@ -35,4 +37,17 @@ private:
     // std::string mLabelNameTxtPath;
     rknn_app_context_t mRknn_app_ctx;
     object_detect_result_list m_od_results;
+
+    /**
+     * SORT 多目标跟踪相关变量
+     */
+    // SORT trackers
+    std::vector<KalmanTracker> m_trackers;
+    HungarianAlgorithm m_hungarian;
+
+    // SORT 参数（可自由调整）
+    int m_target_class_id = 0;      // COCO person 的 class id 通常是 0
+    int m_max_age = 1;              // 与 Python 默认一致
+    int m_min_hits = 3;             // 与 Python 默认一致
+    float m_iou_threshold = 0.3f;   // 与 Python 默认一致
 };

@@ -38,6 +38,24 @@ static void mapCoordinates(int *x, int *y) {
     *y = (int)((float)my / scale);
 }
 
+// 计算两个 rect 的 IoU（float）
+static float rect_iou(const cv::Rect_<float>& a, const cv::Rect_<float>& b) {
+    float x1 = std::max(a.x, b.x);
+    float y1 = std::max(a.y, b.y);
+    float x2 = std::min(a.x + a.width, b.x + b.width);
+    float y2 = std::min(a.y + a.height, b.y + b.height);
+
+    float w = x2 - x1;
+    float h = y2 - y1;
+    if (w <= 0.0f || h <= 0.0f) return 0.0f;
+    float inter = w * h;
+    float areaA = a.width * a.height;
+    float areaB = b.width * b.height;
+    float uni = areaA + areaB - inter;
+    if (uni <= 0.0f) return 0.0f;
+    return inter / uni;
+}
+
 LuckfoxCameraSource* LuckfoxCameraSource::createNew(UsageEnvironment* env, int width, int height)
 {
 	return new LuckfoxCameraSource(env, width, height);
@@ -247,6 +265,148 @@ void LuckfoxCameraSource::handleTask()
 			// 				cv::Point(40, 40),
 			// 				cv::FONT_HERSHEY_SIMPLEX,1,
 			// 				cv::Scalar(0,255,0),2);
+
+// **************************************************************************************************************************************
+			// ---------- begin: SORT tracking logic (插入到 inference 后) ----------
+			std::vector<cv::Rect_<float>> det_boxes;   // detections bbox in x,y,w,h (float)
+			std::vector<float> det_scores;             // detection scores
+			std::vector<int> det_cls_ids;              // detection class ids
+
+			// 1) 收集目标类别为 m_target_class_id 的检测 (用 YOLO 输出)
+			for (int i = 0; i < m_od_results.count; ++i) {
+				object_detect_result *det_result = &(m_od_results.results[i]);
+
+				// 如果只跟踪某个类别，跳过其他类别
+				if (det_result->cls_id != m_target_class_id) continue;
+
+				int sX = (int)(det_result->box.left);
+				int sY = (int)(det_result->box.top);
+				int eX = (int)(det_result->box.right);
+				int eY = (int)(det_result->box.bottom);
+				// mapCoordinates 如果改变了坐标，需要在此之后调用（你原来在框绘制前用了 mapCoordinates）
+				mapCoordinates(&sX,&sY);
+				mapCoordinates(&eX,&eY);
+
+				// 转换为 x,y,w,h (float)
+				float x = static_cast<float>(sX);
+				float y = static_cast<float>(sY);
+				float w = static_cast<float>(eX - sX);
+				float h = static_cast<float>(eY - sY);
+				if (w <= 0 || h <= 0) continue;
+
+				det_boxes.emplace_back(x, y, w, h);
+				det_scores.push_back(det_result->prop);
+				det_cls_ids.push_back(det_result->cls_id);
+			}
+
+			// 2) 如果没有检测, 还是需要对已有 trackers 做 predict（以推进 time_since_update）
+			int N = (int)det_boxes.size();
+			int M = (int)m_trackers.size();
+
+			// 先对每个 tracker 做 predict，并保留预测结果
+			std::vector<cv::Rect_<float>> predicted_boxes;
+			predicted_boxes.reserve(M);
+			for (int k = 0; k < M; ++k) {
+				cv::Rect_<float> pred = m_trackers[k].predict(); // KalmanTracker::predict() 返回 StateType (cv::Rect_<float>)
+				predicted_boxes.push_back(pred);
+			}
+
+			// 3) 构造代价矩阵（N x M），cost = 1 - IoU  (lower cost == better match)
+			std::vector<std::vector<double>> costMatrix;
+			costMatrix.assign(N, std::vector<double>(std::max(1, M), 0.0)); // 注意当 M==0 时分配 1 列避免空
+
+			for (int i = 0; i < N; ++i) {
+				for (int j = 0; j < M; ++j) {
+					float iou = rect_iou(det_boxes[i], predicted_boxes[j]);
+					costMatrix[i][j] = 1.0 - static_cast<double>(iou);
+				}
+				// if no trackers (M==0) costMatrix row stays length 1 with value 0
+			}
+
+			// 4) 调用 Hungarian 求解指派（如果 N>0 且 M>0）
+			std::vector<int> assignment; // assignment.size == N, assignment[i] = assigned tracker index or -1
+			assignment.assign(N, -1);
+
+			if (N > 0 && M > 0) {
+				double cost = m_hungarian.Solve(costMatrix, assignment); // assignment 填充
+				// Hungarian 的实现通常会在无法匹配处填 -1
+			}
+
+			// 5) 根据 assignment 筛选 matches / unmatched
+			std::vector<int> matchedDetIdx; matchedDetIdx.reserve(N);
+			std::vector<int> matchedTrkIdx; matchedTrkIdx.reserve(M);
+			std::vector<int> unmatchedDetIdx;
+			std::vector<int> unmatchedTrkIdx;
+
+			// mark trackers as unmatched initially
+			std::vector<char> trkMatched(M, 0);
+
+			// Process assignment, 并做 IOU threshold 过滤（对应 Python SORT 的行为）
+			for (int i = 0; i < N; ++i) {
+				int trkIdx = assignment[i];
+				if (trkIdx >= 0 && trkIdx < M) {
+					float iou = rect_iou(det_boxes[i], predicted_boxes[trkIdx]);
+					if (iou >= m_iou_threshold) {
+						// accept match
+						matchedDetIdx.push_back(i);
+						matchedTrkIdx.push_back(trkIdx);
+						trkMatched[trkIdx] = 1;
+					} else {
+						// treat as unmatched (IOU 太低)
+						assignment[i] = -1;
+						unmatchedDetIdx.push_back(i);
+					}
+				} else {
+					unmatchedDetIdx.push_back(i);
+				}
+			}
+			// 未被匹配到的 tracker
+			for (int j = 0; j < M; ++j) {
+				if (!trkMatched[j]) unmatchedTrkIdx.push_back(j);
+			}
+
+			// 6) 更新 matched trackers，用对应 detection 调用 update()
+			for (size_t k = 0; k < matchedDetIdx.size(); ++k) {
+				int d = matchedDetIdx[k];
+				int t = matchedTrkIdx[k];
+				cv::Rect_<float> detRect = det_boxes[d];
+				m_trackers[t].update(detRect); // KalmanTracker::update(stateMat)
+			}
+
+			// 7) 为 unmatched detections 创建新 tracker
+			for (int idx : unmatchedDetIdx) {
+				cv::Rect_<float> detRect = det_boxes[idx];
+				KalmanTracker newTrk(detRect);
+				m_trackers.push_back(newTrk);
+			}
+
+			// 8) 删除超过 max_age 的 tracker（从后向前删除以保持索引正确）
+			for (int trk_i = (int)m_trackers.size() - 1; trk_i >= 0; --trk_i) {
+				if (m_trackers[trk_i].m_time_since_update > m_max_age) {
+					m_trackers.erase(m_trackers.begin() + trk_i);
+				}
+			}
+
+			// 9) 输出/绘制当前“confirmed” tracks（类似 Python SORT 的输出规则）
+			for (size_t k = 0; k < m_trackers.size(); ++k) {
+				KalmanTracker &trk = m_trackers[k];
+				// 只输出在当前帧被更新的，且 hit_streak >= min_hits，或帧数较早时宽松输出
+				if ((trk.m_time_since_update < 1) && (trk.m_hit_streak >= m_min_hits || /*frame_count<=min_hits*/ true)) {
+					cv::Rect_<float> box = trk.get_state(); // get_state() 返回 x,y,w,h
+					// 将 float 转 int 以绘制
+					cv::Rect rectToDraw(cv::Point((int)box.x, (int)box.y),
+										cv::Size((int)box.width, (int)box.height));
+					cv::rectangle(mCvFrame, rectToDraw, cv::Scalar(0, 0, 255), 2);
+
+					// 绘制 ID (KalmanTracker 中 m_id 为 0-based 或基于实现)
+					char idtxt[32];
+					sprintf(idtxt, "ID:%d", trk.m_id); // 如果需要 +1 可自己调整
+					cv::putText(mCvFrame, idtxt, cv::Point((int)box.x, (int)box.y - 6),
+								cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(0, 0, 255), 2);
+				}
+			}
+			// ---------- end: SORT tracking logic ----------
+// **************************************************************************************************************************************
 			
 		} else {
 			LOGI("get vi frame error %x", s32Ret);
