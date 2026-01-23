@@ -1,7 +1,7 @@
 #include "MediaSource.h"
 #include "Log.h"
 
-MediaSource::MediaSource(UsageEnvironment* env): mEnv(env), mFps(0), mTask(taskCallback, this)
+MediaSource::MediaSource(UsageEnvironment* env): mEnv(env), mFps(0.0f), mTask(taskCallback, this)
 {
     for(int i = 0; i < DEFAULT_FRAME_NUM; ++i)
     {

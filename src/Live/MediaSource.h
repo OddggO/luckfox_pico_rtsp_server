@@ -28,13 +28,13 @@ public:
 
     MediaFrame* getFromOutputQueue();
     void putFrameToInputQueue(MediaFrame* frame);
-    int getFps() const {return mFps;}
+    float getFps() const {return mFps;}
     std::string getSourceName() {return mSourceName;}
 private:
     static void taskCallback(void* arg);
 protected:
     virtual void handleTask() = 0; // 纯虚函数
-    void setFps(int fps) {mFps = fps;}
+    void setFps(float fps) {mFps = fps;}
 protected:
     UsageEnvironment* mEnv;
     MediaFrame mFrames[DEFAULT_FRAME_NUM];
@@ -43,6 +43,6 @@ protected:
 
     std::mutex mMtx;
     ThreadPool::Task mTask;
-    int mFps;
+    float mFps;
     std::string mSourceName; // 要播放的文件或设备名称
 };

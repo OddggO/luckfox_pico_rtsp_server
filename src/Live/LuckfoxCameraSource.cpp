@@ -144,6 +144,8 @@ LuckfoxCameraSource::LuckfoxCameraSource(UsageEnvironment* env, int width, int h
     {
         mEnv->threadPool()->addTask(mTask);
     }
+	
+	// mFps = 0.0f; // TODO 如果这里给mFPS赋值，会莫名其妙 Floating point exception (core dumped) 
 
 	LOGI("init success");
 }
@@ -208,7 +210,6 @@ void LuckfoxCameraSource::handleTask()
         LOGI("no input frame available");
         return;
     }
-	LOGI("n_input : %d", mRknn_app_ctx.io_num.n_input);
 	MediaFrame* frame = mInputFrameQ.front();
 	RK_S32 s32Ret = 0;
 	while (true)
@@ -219,21 +220,15 @@ void LuckfoxCameraSource::handleTask()
 		s32Ret = RK_MPI_VI_GetChnFrame(0, 0, &mStViFrame, -1);
 		if(s32Ret == RK_SUCCESS)
 		{
-			// LOGI("RK_MPI_VI_GetChnFrame success");
 			void *vi_data = RK_MPI_MB_Handle2VirAddr(mStViFrame.stVFrame.pMbBlk);
-			LOGI("read one frame");
 			cv::Mat yuv420sp(mHeight + mHeight / 2, mWidth, CV_8UC1, vi_data);
 			cv::Mat bgr(mHeight, mWidth, CV_8UC3, mData);			
 			cv::cvtColor(yuv420sp, bgr, cv::COLOR_YUV420sp2BGR);
 			cv::resize(bgr, mCvFrame, cv::Size(mWidth ,mHeight), 0, 0, cv::INTER_LINEAR);
-			LOGI("resized one frame");
 			//letterbox
 			cv::Mat letterboxImage = letterbox(mCvFrame);	
-			LOGI("letterbox one frame");
 			memcpy(mRknn_app_ctx.input_mems[0]->virt_addr, letterboxImage.data, model_width*model_height*3);
-			LOGI("memcpy one frame to virt_addr");
 			inference_yolov5_model(&mRknn_app_ctx, &m_od_results);
-			LOGI("inference one frame");
 			for(int i = 0; i < m_od_results.count; i++)
 			{					
 				if(m_od_results.count >= 1)
@@ -260,11 +255,12 @@ void LuckfoxCameraSource::handleTask()
 				}
 			}
 			
-			// sprintf(mFpsTxt,"fps = %.2f", mFps);		
-            // cv::putText(mCvFrame, mFpsTxt,
-			// 				cv::Point(40, 40),
-			// 				cv::FONT_HERSHEY_SIMPLEX,1,
-			// 				cv::Scalar(0,255,0),2);
+			sprintf(mFpsTxt,"fps = %.2f", mFps);		
+			LOGI("mFpsTxt=%s", mFpsTxt);
+            cv::putText(mCvFrame, mFpsTxt,
+							cv::Point(40, 40),
+							cv::FONT_HERSHEY_SIMPLEX,1,
+							cv::Scalar(0,255,0),2);
 
 // **************************************************************************************************************************************
 			// ---------- begin: SORT tracking logic (插入到 inference 后) ----------
@@ -420,10 +416,9 @@ void LuckfoxCameraSource::handleTask()
 		s32Ret = RK_MPI_VENC_GetStream(0, &mStFrame, -1);
 		// LOGI("RK_MPI_VENC_GetStream()");
 		if(s32Ret == RK_SUCCESS) {
-			LOGI("len = %d PTS = %d \n",mStFrame.pstPack->u32Len, mStFrame.pstPack->u64PTS);	
+			// LOGI("len = %d PTS = %d \n",mStFrame.pstPack->u32Len, mStFrame.pstPack->u64PTS);	
 			void *pData = RK_MPI_MB_Handle2VirAddr(mStFrame.pstPack->pMbBlk);
-			RK_U64 nowUs = TEST_COMM_GetNowUs();
-			// mFps = (float) 1000000 / (float)(nowUs - mH264_frame.stVFrame.u64PTS);			
+					
 			// memcpy(frame->temp, pData + mStFrame.pstPack->u32Offset, mStFrame.pstPack->u32Len); // 这里不能加这个偏移!!! 否则会找不到startCode
 			memcpy(frame->temp, pData, mStFrame.pstPack->u32Len);
 			frame->mBuf = frame->temp;
@@ -441,6 +436,8 @@ void LuckfoxCameraSource::handleTask()
 			// frame->mSize = 1920 * 1080 * 3;
 			// LOGI("frame->mSize=%d, u64PTS=%d", frame->mSize, mStFrame.pstPack->u64PTS);
 			// usleep(mStFrame.pstPack->u64PTS);
+			RK_U64 nowUs = TEST_COMM_GetNowUs();
+			mFps = (float) 1000000 / (float)(nowUs - mH264_frame.stVFrame.u64PTS);	
 		} else {
 			LOGI("get stream error %x", s32Ret);
 		}
