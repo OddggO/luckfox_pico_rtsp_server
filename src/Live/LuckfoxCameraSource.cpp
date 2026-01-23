@@ -424,7 +424,8 @@ void LuckfoxCameraSource::handleTask()
 			void *pData = RK_MPI_MB_Handle2VirAddr(mStFrame.pstPack->pMbBlk);
 			RK_U64 nowUs = TEST_COMM_GetNowUs();
 			// mFps = (float) 1000000 / (float)(nowUs - mH264_frame.stVFrame.u64PTS);			
-			memcpy(frame->temp, pData + mStFrame.pstPack->u32Offset, mStFrame.pstPack->u32Len);
+			// memcpy(frame->temp, pData + mStFrame.pstPack->u32Offset, mStFrame.pstPack->u32Len); // 这里不能加这个偏移!!! 否则会找不到startCode
+			memcpy(frame->temp, pData, mStFrame.pstPack->u32Len);
 			frame->mBuf = frame->temp;
 			frame->mSize = mStFrame.pstPack->u32Len;
 			if (startCode3(frame->mBuf)) {
