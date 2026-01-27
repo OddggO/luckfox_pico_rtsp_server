@@ -1,3 +1,5 @@
+rtsp服务器实现 + rknn yolov5推理 + sort跟踪算法
+
 编译流程: 
 1. 在在目录'luckfox_pico_rkmpi_example'设置sdk目录, export LUCKFOX_SDK_PATH=/home/luckfox-pico. 其目的是找到tools目录下编译工具链地址
 2. ./build.sh编译, 选择uclibc
