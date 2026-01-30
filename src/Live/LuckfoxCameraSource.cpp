@@ -222,7 +222,8 @@ void LuckfoxCameraSource::handleTask()
 		{
 			void *vi_data = RK_MPI_MB_Handle2VirAddr(mStViFrame.stVFrame.pMbBlk);
 			cv::Mat yuv420sp(mHeight + mHeight / 2, mWidth, CV_8UC1, vi_data);
-			cv::Mat bgr(mHeight, mWidth, CV_8UC3, mData);			
+			cv::Mat bgr(mHeight, mWidth, CV_8UC3, mData);	
+			LOGI("bgr, width: %d, height: %d, channels: %d", bgr.rows, bgr.cols, bgr.channels());		
 			cv::cvtColor(yuv420sp, bgr, cv::COLOR_YUV420sp2BGR);
 			cv::resize(bgr, mCvFrame, cv::Size(mWidth ,mHeight), 0, 0, cv::INTER_LINEAR);
 			//letterbox
